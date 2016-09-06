@@ -71,7 +71,7 @@ def open_file_with_timeout(parser, arg):
 
 class PyPDFOCR(object):
     """
-        The main clas.  Performs the following functions:
+        The main class.  Performs the following functions:
 
         * Parses command line options
         * Optionally just watches a directory for new PDF's to OCR; once a file appears, it does the next step
