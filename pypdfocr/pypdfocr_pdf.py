@@ -38,7 +38,6 @@ import math
 
 from cgi import escape
 # Pkg to read multiple image tiffs
-from PIL import Image
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
