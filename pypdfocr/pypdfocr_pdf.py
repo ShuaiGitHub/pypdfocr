@@ -30,12 +30,12 @@ import shutil
 import time
 import tempfile
 import glob
-
+import tools
 import cStringIO
 import base64
 import zlib
 import math
-
+from PIL import Image
 from cgi import escape
 # Pkg to read multiple image tiffs
 from PIL import Image
@@ -212,7 +212,8 @@ class PyPdf(object):
         height = h*72.0/dpi[1]
         del img
         return (width, height, dpi)
-
+    #   Shuai Wang, Sep 7th, 2016
+    #   This is the most important functions that create overlay page based on the current hOCR format result.
     def overlay_hocr_page(self, dpi, hocr_filename, img_filename):
         hocr_dir, hocr_basename = os.path.split(hocr_filename)
         img_dir, img_basename = os.path.split(img_filename)
@@ -242,7 +243,8 @@ class PyPdf(object):
             pg_num = 1
 
             logging.info("Adding text to page %s" % pdf_filename)
-            self.add_text_layer(pdf,hocr_basename,pg_num,height,dpi)
+            #self.add_text_layer(pdf,hocr_basename,pg_num,height,dpi)
+            self.add_lstm_text_layer(pdf,hocr_basename,pg_num,height,dpi)
             pdf.showPage()
             pdf.save()
 
@@ -265,6 +267,50 @@ class PyPdf(object):
         (See Toothy's implementation in the comments)
         '''
         return [ self._atoi(c) for c in re.split('(\d+)', text) ]
+    def add_lstm_text_layer(self,pdf,hocrfile,page_num,height,dpi):
+        hocr = ElementTree()
+        try:
+            # It's possible tesseract has failed and written garbage to this hocr file, so we need to catch any exceptions
+            hocr.parse(hocrfile)
+        except Exception:
+            logging.info("Error loading hocr, not adding any text")
+            return
+
+        logging.debug(xml.etree.ElementTree.tostring(hocr.getroot()))
+        for c in hocr.getroot():  # Find the <body> tag
+            if c.tag != 'body':
+                continue
+        for page in c:  # Each child in the body is a page tag
+            if (page.attrib['class'] != "ocr_page"):
+                assert ("Why is this hocr not paging properly??")
+            if page.attrib['id'] == 'page_%d' % (page_num):
+                break
+        print page_num
+        line_idx = 0
+        for line in page.findall(".//{http://www.w3.org/1999/xhtml}span"):
+            # for line in page.findall(".//span"):
+            if line.attrib['class'] != 'ocr_line':
+                continue
+            line_idx = line_idx+1
+            linebox = self.regex_bbox.search(line.attrib['title']).group(1).split()
+            textangle = self.regex_textangle.search(line.attrib['title'])
+            if textangle:
+                textangle = self._atoi(textangle.group(1))
+            else:
+                textangle = 0
+
+            try:
+                baseline = self.regex_baseline.search(line.attrib['title']).group(1).split()
+            except AttributeError:
+                baseline = [0, 0]
+            linebox = [float(i) for i in linebox]
+            test_img_name = "/home/i59034/Documents/OCR-Verisk/data/ocr_pipeline/NEC_" + str(page_num) + ".jpg"
+            original_im = Image.open(test_img_name)
+            test_line_name= test_img_name.replace("ocr_pipeline","ocr_pipeline/hOCRTest")
+            test_line_name=test_line_name.replace(".jpg","-"+str(line_idx)+".jpg")
+            tools.cropBoxDefault(original_im, linebox).save(test_line_name)
+            print linebox
+
 
     def add_text_layer(self,pdf, hocrfile, page_num,height, dpi):
       """Draw an invisible text layer for OCR data.
